@@ -1,115 +1,150 @@
-const axios = require("axios");
-const fs = require('fs-extra');
-const path = require('path');
+const axios = require('axios');
 
-const fileExtensions = {
-  "googlevideo.com": ".mp3",
-  "pinimg.com": ".jpg",
-  "tiktokcdn-us.com": ".mp4",
-
-};
-
-async function checkAuthor(authorName) {
-  try {
-    const response = await axios.get('https://author-check.vercel.app/name');
-    const apiAuthor = response.data.name;
-    return apiAuthor === authorName;
-  } catch (error) {
-    console.error("Error checking author:", error);
-    return false;
-  }
-}
-
-async function helis(api, event, args, message) {
-  try {
-    const input = args.join(" ");
-    const response = await axios.get(`https://helis-ai.vercel.app/kshitiz?input=${encodeURIComponent(input)}`);
-    const responseData = response.data;
-
-    if (responseData.response.startsWith("https://")) {
-      const responseLink = responseData.response;
-      let fileExtension = "";
-
-      if (responseLink.includes("googlevideo.com")) {
-        fileExtension = ".music.mp3";
-      } else if (responseLink.includes("pinimg.com")) {
-        fileExtension = ".image.jpg";
-      } else if (responseLink.includes("tiktokcdn-us.com")) {
-        fileExtension = ".video.mp4";
-      }
-
-      if (fileExtension !== "") {
-        const fileName = `helis_${Date.now()}${fileExtension}`;
-        const filePath = path.join(__dirname, "cache", fileName);
-
-        const fileResponse = await axios.get(responseLink, { responseType: 'stream' });
-        const writer = fs.createWriteStream(filePath);
-
-        fileResponse.data.pipe(writer);
-
-        writer.on('finish', async () => {
-          const fileStream = fs.createReadStream(filePath);
-          const sentMessage = await message.reply({ body: "", attachment: fileStream });
-          api.setMessageReaction("✅", event.messageID, () => {}, true);
-
-          global.GoatBot.onReply.set(sentMessage.messageID, {
-            commandName: "helis",
-            uid: event.senderID
-          });
-        });
-
-        writer.on('error', (error) => {
-          console.error("Error downloading file:", error);
-          message.reply("An error occurred while processing the file.");
-        });
-      } else {
-        message.reply("Unsupported link.");
-      }
-    } else {
-      message.reply(responseData.response, (c, e) => {
-        global.GoatBot.onReply.set(e.messageID, {
-          commandName: module.exports.config.name,
-          uid: event.senderID
-        });
-      });
-    }
-  } catch (error) {
-    console.error("Error:", error);
-    message.reply("An error occurred while processing the request.");
-  }
-}
+const Prefixes = [
+  'ai',
+  'ask',
+  'gpt',
+  'openai',
+  '@ai',// put here your AI names 
+];
 
 module.exports = {
   config: {
-    name: "ai",
-    version: "1.0",
-    author: "Vex_Kshitiz",
+    name: 'ai',
+    version: '1.0.5',
+    author: 'ArYAN', // don't change credits please 🙏🙂
     role: 0,
-    shortDescription: "helis ai made by kshitiz",
-    longDescription: "helis ai ( able to send music video and image and interact with users in chats too",
-    category: "ai",
-    guide: "{p}helis {input}"
+    category: 'ai',
+    longDescription: {
+      en: 'AI is designed to answer user queries and engage in conversations based on user input. It provides responses and insights on a wide range of topics.'
+    },
+    guide: {
+      en: `
+      Command: ai [question]
+      - Use this command to ask a question to the AI chatbot.
+      - Example: ai What is the weather like today?
+
+      Reply with "reset" to clear the conversation history.
+      `
+    }
+  },
+  onStart: async () => {},
+  onChat: async ({ api, event, args, message }) => {
+    const prefix = Prefixes.find(p => event.body.toLowerCase().startsWith(p));
+    if (!prefix) return;
+
+    const question = event.body.slice(prefix.length).trim();
+    if (!question) {
+      return message.reply("❓ It looks like you didn't provide a question. Please include a question after the command so I can assist you.");
+    }
+
+    const uid = event.senderID;
+
+    api.setMessageReaction("⏰", event.messageID, () => {}, true);
+
+    const startTime = Date.now();
+
+    try {
+      const response = await axios.get('https://king-aryanapis.onrender.com/gts/smile', {
+        params: { uid, question }
+      });
+
+      if (response.status !== 200 || !response.data) {
+        throw new Error('Invalid or missing response from API');
+      }
+
+      const answer = response.data.response;
+      const endTime = Date.now();
+      const processTimeMs = endTime - startTime;
+      const processTimeSec = (processTimeMs / 1000).toFixed(2);
+
+      const replyMessage = await message.reply(`📒 𝗤𝘂𝗲𝘀𝘁𝗶𝗼𝗻: ${question}\n━━━━━━━━━━━━━\n\n✅ 𝗔𝗻𝘀𝘄𝗲𝗿: ${answer}\n\n━━━━━━━━━━━━━\n𝗣𝗿𝗼𝗰𝗲𝘀𝘀 𝗧𝗶𝗺𝗲: ${processTimeSec} seconds`);
+
+      global.GoatBot.onReply.set(replyMessage.messageID, {
+        commandName: module.exports.config.name,
+        messageID: replyMessage.messageID,
+        author: event.senderID
+      });
+
+      api.setMessageReaction("✅", event.messageID, () => {}, true);
+
+    } catch (error) {
+      console.error(`Error fetching response: ${error.message}, Status Code: ${error.response ? error.response.status : 'N/A'}`);
+      message.reply(`⚠️ An error occurred while processing your request. Error: ${error.message}${error.response ? `, Status Code: ${error.response.status}` : ''}. Please try again later.`);
+
+      api.setMessageReaction("❌", event.messageID, () => {}, true);
+    }
   },
 
-  handleCommand: helis,
-  onStart: async function ({ api, event, message, args }) {
-    const isAuthorValid = await checkAuthor(module.exports.config.author);
-    if (!isAuthorValid) {
-      await message.reply("Author changer alert! This command belongs to Vex_Kshitiz.");
+  onReply: async ({ api, event, Reply, message }) => {
+    const { author } = Reply;
+    const userReply = event.body.trim();
+    const uid = event.senderID;
+
+    if (author !== uid) {
+      return message.reply("⚠️ You are not authorized to reply to this message.");
+    }
+
+    if (global.GoatBot.onReply.has(event.messageID)) {
       return;
     }
 
-    return helis(api, event, args, message);
-  },
-  onReply: async function ({ api, message, event, args }) {
-    if (event.type === 'message_reply') {
-      const replyData = global.GoatBot.onReply.get(event.messageReply.messageID);
+    api.setMessageReaction("⏰", event.messageID, () => {}, true);
 
-      if (replyData && replyData.uid === event.senderID) {
-        global.GoatBot.onReply.delete(event.messageReply.messageID);
-        const newArgs = event.body.split(" ");
-        return helis(api, event, newArgs, message);
+    if (userReply.toLowerCase() === 'reset') {
+      try {
+        const response = await axios.get('https://king-aryanapis.onrender.com/gts/reset', {
+          params: { uid }
+        });
+
+        if (response.status !== 200 || !response.data.status) {
+          throw new Error('Invalid or missing response from API');
+        }
+
+        message.reply("✅ The conversation history has been successfully cleared.");
+
+        api.setMessageReaction("✅", event.messageID, () => {}, true);
+
+      } catch (error) {
+        console.error(`Error resetting conversation: ${error.message}, Status Code: ${error.response ? error.response.status : 'N/A'}`);
+        message.reply(`⚠️ An error occurred while clearing the conversation history. Error: ${error.message}${error.response ? `, Status Code: ${error.response.status}` : ''}. Please try again later.`);
+
+        api.setMessageReaction("❌", event.messageID, () => {}, true);
       }
+      return;
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const response = await axios.get('https://king-aryanapis.onrender.com/gts/smile', {
+        params: { uid, question: userReply }
+      });
+
+      if (response.status !== 200 || !response.data) {
+        throw new Error('Invalid or missing response from API');
+      }
+
+      const followUpResponse = response.data.response;
+      const endTime = Date.now();
+      const processTimeMs = endTime - startTime;
+      const processTimeSec = (processTimeMs / 1000).toFixed(2);
+
+      const followUpMessage = await message.reply(`📒 𝗤𝘂𝗲𝘀𝘁𝗶𝗼𝗻: ${userReply}\n━━━━━━━━━━━━━\n\n✅ 𝗔𝗻𝘀𝘄𝗲𝗿: ${followUpResponse}\n\n━━━━━━━━━━━━━\n𝗣𝗿𝗼𝗰𝗲𝘀𝘀 𝗧𝗶𝗺𝗲: ${processTimeSec} seconds`);
+
+      global.GoatBot.onReply.set(followUpMessage.messageID, {
+        commandName: module.exports.config.name,
+        messageID: followUpMessage.messageID,
+        author: event.senderID
+      });
+
+      api.setMessageReaction("✅", event.messageID, () => {}, true);
+
+    } catch (error) {
+      console.error(`Error fetching follow-up response: ${error.message}, Status Code: ${error.response ? error.response.status : 'N/A'}`);
+      message.reply(`⚠️ An error occurred while processing your reply. Error: ${error.message}${error.response ? `, Status Code: ${error.response.status}` : ''}. Please try again later.`);
+
+      api.setMessageReaction("❌", event.messageID, () => {}, true);
     }
   }
 };
