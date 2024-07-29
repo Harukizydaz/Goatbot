@@ -2,7 +2,8 @@ const axios = require('axios');
 
 const Prefixes = [
   'ai',
-  '/ai'
+  'Ai',
+  'AI',
   'ask',
   'gpt',
   'openai',
