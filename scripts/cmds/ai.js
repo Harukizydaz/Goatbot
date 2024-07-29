@@ -5,7 +5,7 @@ const Prefixes = [
   'ask',
   'gpt',
   'openai',
-  '@ai',// put here your AI names 
+  '@Hiroshi Nakamura',// put here your AI names 
 ];
 
 module.exports = {
