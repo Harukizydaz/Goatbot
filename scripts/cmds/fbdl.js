@@ -1,39 +1,73 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+const MAX_FILE_SIZE_MB = 84;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 module.exports = {
   config: {
-    name: "fbdl",
+    name: "alldl",
     version: "1.0",
-    author: "rehat--",
-    countDown: 15,
-    role: 0,
-    longDescription: "Download facebook video.",
+    author: "Kaizenji",//don't change the credits, i will destroy your country!!
     category: "media",
-    guide: {
-      en:"{pn} link"
-    }
+    aliases: ["dl"],
+    countDown: 10,
+    role: 0,
+    shortDescription: "Download content by link",
+    longDescription: { en: "Download video content using link from Facebook, Instagram, TikTok" },
+    category: "media",
+    guide: "{pn} <url>"
   },
 
   onStart: async function ({ message, args }) {
     const link = args.join(" ");
-    if (!link)
-      return message.reply(`Please provide the link to the facebook video.`);
-    else {
-      const BASE_URL = `https://turtle-apis.onrender.com/api/videofb?url=${encodeURIComponent(link)}`;
+    if (!link) {
+      return message.reply("Please provide a link.");
+    }
 
-      message.reply("⬇ | Downloading the video for you");
+    let BASE_URL;
+    if (link.includes("facebook.com") || link.includes("instagram.com")) {
+      BASE_URL = `https://kaizenji-dlz-api.onlitegix.com/media?url=${encodeURIComponent(link)}`;
+    } else if (link.includes("tiktok.com")) {
+      BASE_URL = `https://kaizenji-dlz-api.onlitegix.com/tiktok?url=${encodeURIComponent(link)}`;
+    } else {
+      return message.reply("Unsupported source.");
+    }
 
-      try {
-        let res = await axios.get(BASE_URL);
-        let videoUrl = res.data.hd;
+    try {
+      await message.reply("Downloading video, please wait...");
 
-        const response = {
-          attachment: await global.utils.getStreamFromURL(videoUrl)
-        };
+      const res = await axios.get(BASE_URL);
+      let contentUrl;
 
-        await message.reply(response);
-      } catch (e) {
-        message.reply(`Sorry, the Facebook video could not be downloaded.`);
+      if (link.includes("facebook.com") || link.includes("instagram.com")) {
+        contentUrl = link.includes("facebook.com") ? res.data.hdUrl || res.data.sdUrl : res.data.videoUrl;
+      } else if (link.includes("tiktok.com")) {
+        contentUrl = res.data.videoUrl;
       }
+
+      if (!contentUrl) {
+        return message.reply("No downloadable content found.");
+      }
+
+      const response = await axios.get(contentUrl, { responseType: 'arraybuffer' });
+
+      if (response.data.length > MAX_FILE_SIZE_BYTES) {
+        return message.reply("The file size exceeds the 84 MB limit.");
+      }
+
+      const filePath = path.join(__dirname, 'tmp', `${Date.now()}.mp4`);
+      fs.writeFileSync(filePath, Buffer.from(response.data));
+
+      await message.reply({
+        body: "Download successfully!",
+        attachment: fs.createReadStream(filePath)
+      });
+
+    } catch (error) {
+      console.error(error);
+      message.reply("Sorry, an error occurred while processing your request.");
     }
   }
 };
