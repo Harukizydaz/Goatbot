@@ -15,31 +15,31 @@ module.exports = {
     },
     category: "Search",
     guide: {
-      en: "{pn} <search query> <number of images>\nExample: {pn} cat | 10"
+      en: "{pn} <search query> <number of images>\nExample: {pn} tomozaki -5"
     }
   },
 
   onStart: async function ({ api, event, args }) {
     try {
       const keySearch = args.join(" ");
-      if (!keySearch.includes("|")) {
+      if (!keySearch.includes("-")) {
         return api.sendMessage(
-          `Please enter the search query and number of images\n\nExample:\n{p}pin cat | 10.`,
+          `Please enter the search query and number of images.`,
           event.threadID,
           event.messageID
         );
       }
 
-      const keySearchs = keySearch.substr(0, keySearch.indexOf('|')).trim();
-      let numberSearch = parseInt(keySearch.split("|").pop()) || 6;
+      const keySearchs = keySearch.substr(0, keySearch.indexOf('-')).trim();
+      let numberSearch = parseInt(keySearch.split("-").pop()) || 6;
       if (numberSearch > 100) {
         numberSearch = 100;
       }
 
-      const apiUrl = `https://c-v1.onrender.com/api/pint?search=${encodeURIComponent(keySearchs)}&count=${numberSearch}`;
+      const apiUrl = `https://c-v1.onrender.com/api/pin?query=${encodeURIComponent(keySearchs)}&limits=${numberSearch}`;
 
       const res = await axios.get(apiUrl);
-      const data = res.data.data;
+      const data = res.data;
       const imgData = [];
 
       const cacheDir = path.join(__dirname, "cache");
@@ -64,7 +64,7 @@ module.exports = {
       }
 
       await api.sendMessage({
-        body: ``,
+        body: `Here are the top ${numberSearch} results for your query ${keySearchs}`,
         attachment: imgData,
       }, event.threadID, event.messageID);
 
